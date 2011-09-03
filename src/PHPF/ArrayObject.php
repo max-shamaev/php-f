@@ -18,107 +18,378 @@ namespace PHPF;
  * 
  * @since 1.0.0
  */
-class ArrayObject extends \ArrayObject
+class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorAggregate
 {
+    /**
+     * Data 
+     * 
+     * @var   array
+     * @since 1.0.0
+     */
+    protected $data = array();
+
     /**
      * Constructor
      * 
-     * @param mixed   $input         Input
-     * @param integer $flags         Flags
-     * @param string  $iteratorClass Iterato class
+     * @param array|\PHPF\ArrayObject|\ArrayObject $data $data
      *  
      * @return void
      * @since  1.0.0
      */
-    public function __construct($input, $flags = \ArrayObject::ARRAY_AS_PROPS, $iteratorClass = '\ArrayIterator')
+    public function __construct($data)
     {
-        parent::__construct($input, $flags, $iteratorClass);
-    }
+        if (is_object($data)) {
 
-    /**
-     * Set flags - FLAGS CHANGES IS FORBIDDEN
-     * 
-     * @return void
-     * @since  1.0.0
-     */
-    public function setFlags()
-    {
-    }
+            if ($data instanceof static || method_exists($data, 'toArray')) {
+                $data = $data->toArray();
 
-    // {{{ Structure changes
+            } elseif ($data instanceof \ArrayObject) {
+                $data = $data->getArrayCopy();
 
-    public function append($value)
-    {
-        parent::append($value);
+            } else {
+                throw \InvalidArgumentException('$data object can not convert to array');
+            }
 
-        return $this;
-    }
-
-    /**
-     * Shift first element
-     * 
-     * @return mixed
-     * @since  1.0.0
-     */
-    public function shift()
-    {
-        $value = null;
-
-        foreach ($this as $key => $value) {
-            $this->offsetUnset($key);
-            break;
+        } elseif (!is_array($data)) {
+            throw \InvalidArgumentException('$data is not array type');
         }
 
-        return $value;
+        $this->data = $data;
     }
 
+    // {{{ Fabrics
+
     /**
-     * Add first element
+     * Combine array from keys list and values list
      * 
-     * @param mixed $value Value_
+     * @param mixed $keys   Keys
+     * @param mixed $values Values
      *  
      * @return \PHPF\ArrayObject
      * @since  1.0.0
      */
-    public function unshift($value)
+    public static function combine($keys, $values)
     {
-        $data = $this->getArrayCopy();
-        array_unshift($data, $value);
-        $this->exchangeArray($data);
-
-        return $this;
-
+        return new static(array_combine(static::getAsArray($keys), static::getAsArray($values)));
     }
 
     /**
-     * Pop last element
+     * Build by array difference. Computes the difference of arrays with additional index check
      * 
+     * @param array $array1 First array
+     * @param array $array2 Second array
+     *  
+     * @return \PHPF\ArrayObject
+     * @since  1.0.0
+     */
+    public static function buildByDiffAssoc(array $array1, array $array2)
+    {
+        return new static(call_user_func_array('array_diff_assoc', static::getAsArrays(func_get_args())));
+    }
+
+    /**
+     * Get data as array 
+     * 
+     * @param mixed $data Data
+     *  
+     * @return array
+     * @since  1.0.0
+     */
+    protected static function getAsArray($data)
+    {
+        if (is_object($data)) {
+
+            if ($data instanceof static || method_exists($data, 'toArray')) {
+                $data = $data->toArray();
+
+            } elseif ($data instanceof \ArrayObject) {
+                $data = $data->getArrayCopy();
+
+            } else {
+                throw \InvalidArgumentException('$data object can not convert to array');
+            }
+
+        } elseif (!is_array($data)) {
+            throw \InvalidArgumentException('$data is not array type');
+        }
+
+        return $data;
+    }
+
+    /**
+     * Get mixed list as arrays list
+     * 
+     * @param array $arrays Mixed objects
+     *  
+     * @return array
+     * @since  1.0.0
+     */
+    protected static function getAsArrays(array $arrays)
+    {
+        foreach ($arrays as $k => $v) {
+            $arrays[$k] = static::getAsArray($v);
+        }
+
+        return $arrays;
+    }
+
+    // }}}
+
+    // {{{ Property access
+
+    /**
+     * Getter
+     * 
+     * @param mixed $key Cell key
+     *  
      * @return mixed
      * @since  1.0.0
      */
-    public function pop()
+    public function __get($key)
     {
-        $value = null;
-
-        foreach ($this as $key => $value) {
-        }
-
-        $this->offsetUnset($key);
-
-        return $value;
+        return isset($this->data[$key]) ? $this->data[$key] : null;
     }
 
     /**
-     * Push element
+     * Setter
      * 
-     * @param mixed $value Value
+     * @param mixed $key   Cell key
+     * @param mixed $value New value
+     *  
+     * @return void
+     * @since  1.0.0
+     */
+    public function __set($key, $value)
+    {
+        $this->data[$key] = $value;
+    }
+
+    /**
+     * Check cell availability
+     * 
+     * @param mixed $key Cell key
+     *  
+     * @return boolean
+     * @since  1.0.0
+     */
+    public function __isset($key)
+    {
+        return array_key_exists($lkey, $this->data);
+    }
+
+    /**
+     * Unset cell
+     * 
+     * @param mixed $key Cell key
+     *  
+     * @return void
+     * @since  1.0.0
+     */
+    public function __unset($key)
+    {
+        if (array_key_exists($lkey, $this->data)) {
+            unset($this->data[$key]);
+        }
+    }
+
+    // }}}
+
+    // {{{ ArrayAccess
+
+    /**
+     * Check cell availability
+     *
+     * @param mixed $key Cell key
+     *
+     * @return boolean
+     * @since  1.0.0
+     */
+    public function offsetExists($offset)
+    {
+        return $this->__isset($offset);
+    }
+
+    /**
+     * Getter
+     *
+     * @param mixed $key Cell key
+     *
+     * @return mixed
+     * @since  1.0.0
+     */
+    public function offsetGet($offset)
+    {
+        return $this->__get($offset);
+    }
+
+    /**
+     * Setter
+     *
+     * @param mixed $key   Cell key
+     * @param mixed $value New value
+     *
+     * @return void
+     * @since  1.0.0
+     */
+    public function offsetSet($offset, $value)
+    {
+        $this->__set($offset, $value);
+    }
+
+    /**
+     * Unset cell
+     *
+     * @param mixed $key Cell key
+     *
+     * @return void
+     * @since  1.0.0
+     */
+    public function offsetUnset($offset)
+    {
+        $this->__unset($offset);
+    }
+
+
+    // }}}
+
+    // {{{ Serializable
+
+    /**
+     * Serialize data
+     * 
+     * @return string
+     * @since  1.0.0
+     */
+    public function serialize()
+    {
+        return serialize($this->data);
+    }
+
+    /**
+     * Unserialize 
+     * 
+     * @param string $serialized Serialized data
+     *  
+     * @return void
+     * @since  1.0.0
+     */
+    public function unserialize($serialized)
+    {
+        $this->Data = unserialize($serialized);
+    }
+
+    // }}}
+
+    // {{{ Countable
+
+    /**
+     * Count 
+     * 
+     * @return integer
+     * @since  1.0.0
+     */
+    public function count()
+    {
+        return count($this->data);
+    }
+
+    // }}}
+
+    // {{{ IteratorAggregate
+
+    /**
+     * Get iterator 
+     * 
+     * @return \ArrayIterator
+     * @since  1.0.0
+     */
+    public function getIterator()
+    {
+        return new \ArrayIterator($this->data);
+    }
+
+    // }}}
+
+    // {{{ Structure changes
+
+    /**
+     * Append value
+     * 
+     * @param mixed $value New value
      *  
      * @return \PHPF\ArrayObject
      * @since  1.0.0
      */
     public function push($value)
     {
-        return $this->append($value);
+        $this->data[] = $value;
+
+        return $this;
+    }
+
+    /**
+     * Unshift (add first value)
+     * 
+     * @param mixed $value Value
+     *  
+     * @return \PHPF\ArrayObject
+     * @since  1.0.0
+     */
+    public function unshift($value)
+    {
+        array_unshift($this->data, $value);
+
+        return $this;
+    }
+
+    /**
+     * Pop last cell
+     *
+     * @param boolean $returnValue Return value or not OPTIONAL
+     * 
+     * @return mixed
+     * @since  1.0.0
+     */
+    public function pop($returnValue = false)
+    {
+        $value = array_pop($this->data);
+
+        return $returnValue ? $value : $this;
+    }
+
+    /**
+     * Shift first element
+     *
+     * @param boolean $returnValue Return value or not OPTIONAL
+     * 
+     * @return mixed
+     * @since  1.0.0
+     */
+    public function shift($returnValue = false)
+    {
+        $value = array_shift($this->data);
+
+        return $returnValue ? $value : $this;
+    }
+
+    /**
+     * Remove a portion of the array and replace it with something else
+     * 
+     * @param integer $offset      Offset
+     * @param integer $length      Splice length OPTIONAL
+     * @param mixed   $replacement Replacement part OPTIONAL
+     * @param boolean $returnValue Return value or not OPTIONAL
+     *  
+     * @return array|\PHPF\ArrayObject
+     * @since  1.0.0
+     */
+    public function splice($offset, $length = 0, $replacement = null, $returnValue = false)
+    {
+        $spliced = 2 > func_num_args()
+            ? array_splice($this->data, $offset, $length, $replacement)
+            : array_splice($this->data, $offset, $length);
+
+        return $returnValue ? $spliced : $this;
     }
 
     /**
@@ -129,13 +400,73 @@ class ArrayObject extends \ArrayObject
      */
     public function merge()
     {
-        $data = $this->getArrayCopy();
         $args = func_get_args();
-        array_unshift($args, $data);
-        $data = call_user_func_array('array_merge', $args);
-        $this->exchangeArray($data);
+        array_unshift($args, $this->data);
+        $this->data = call_user_func_array('array_merge', $args);
 
         return $this; 
+    }
+
+    /**
+     * Computes the difference of arrays with additional index check
+     * 
+     * @param mixed $array1 Another array
+     *  
+     * @return \PHPF\ArrayObject
+     * @since  1.0.0
+     */
+    public function diffAssoc($array1)
+    {
+        return $this->combineCallback('array_diff_assoc', func_get_args());
+    }
+
+    /**
+     * Computes the difference of arrays using keys for comparison
+     *
+     * @param mixed $array1 Another array
+     *
+     * @return \PHPF\ArrayObject
+     * @since  1.0.0
+     */
+    public function diffKey($array1)
+    {
+        return $this->combineCallback('array_diff_key', func_get_args());
+    }
+
+    /**
+     * Computes the difference of arrays with additional index check which is performed by a user supplied callback function
+     * 
+     * @param mixed $array1 First array
+     *  
+     * @return \PHPF\ArrayObject
+     * @since  1.0.0
+     */
+    public function diffUassoc($array1)
+    {
+        $args = func_get_args();
+        $args[] = \PHP\Closure::getAsCallable(array_pop($args));
+
+        return $this->combineCallback('array_diff_uassoc', $args);
+    }
+
+    /**
+     * Combine-specified callback 
+     * 
+     * @param string $callback Function name
+     * @param array  $args     Arguments
+     *  
+     * @return \PHPF\ArrayObject
+     * @since  1.0.0
+     */
+    protected function combineCallback($callback, array $args)
+    {
+        $this->data = call_user_func_array(
+            $callback,
+            array_merge(array($this->data), static::getAsArrays($args))
+        );
+
+        return $this;
+
     }
 
     // }}}
@@ -186,7 +517,18 @@ class ArrayObject extends \ArrayObject
 
     // }}}
 
-    // {{{ Structure info
+    // {{{ Information and property
+
+    /**
+     * Counts all the values of an array
+     * 
+     * @return array
+     * @since  1.0.0
+     */
+    public function countValues()
+    {
+        return array_count_values($this->data);
+    }
 
     // }}}
 
