@@ -77,35 +77,7 @@ class Closure
         $this->initialCallback = $callback;
     }
 
-    // {{{ Fabrics
-
-    /**
-     * Build by class or object
-     * 
-     * @param string $class  Class name
-     * @param string $method Method name
-     *  
-     * @return \PHPF\Closure
-     * @since  1.0.0
-     */
-    public static function buildByClass($class, $method)
-    {
-        return new static($class . '::' . $method);
-    }
-
-    /**
-     * Build by object and method name
-     * 
-     * @param object $object Object
-     * @param string $method Method name
-     *  
-     * @return \PHPF\Closure
-     * @since  1.0.0
-     */
-    public static function buildByObject($object, $method)
-    {
-        return new static(array($object, $method));
-    }
+    // {{{ Factories
 
     /**
      * Build as closures concatinations 
@@ -141,6 +113,23 @@ class Closure
 
     // {{{ Getters
 
+    /**
+     * Get callable 
+     * 
+     * @return callable
+     * @since  1.0.0
+     */
+    public function getCallable()
+    {
+        return $this->callback;
+    }
+
+    /**
+     * Get closure 
+     * 
+     * @return \Closure
+     * @since  1.0.0
+     */
     public function getClosure()
     {
         if (is_array($this->callback) || is_string($this->callback)) {
@@ -164,9 +153,19 @@ class Closure
      */
     public function getReflection()
     {
-        return is_array($this->initialCallback)
-            ? new \ReflectionMethod($this->initialCallback[0], $this->initialCallback[1])
-            : new \ReflectionFunction($this->initialCallback);
+        if (is_array($this->initialCallback)) {
+            $reflection = new \ReflectionMethod($this->initialCallback[0], $this->initialCallback[1]);
+
+        } elseif (is_string($this->initialCallback) && false !== strpos($this->initialCallback, '::')) {
+
+            list($class, $method) = explode('::', $this->initialCallback, 2);
+            $reflection = new \ReflectionMethod($class, $method);
+
+        } else {
+            $reflection = new \ReflectionFunction($this->initialCallback);
+        }
+
+        return $reflection;
     }
 
     // }}}
@@ -183,7 +182,7 @@ class Closure
     {
         $callback = $this->callback;
         $this->callback = function () use ($callback) {
-            return call_user_func_array($callback, array_flip(func_get_args()));
+            return call_user_func_array($callback, array_reverse(func_get_args()));
         };
 
         return $this;
@@ -191,16 +190,18 @@ class Closure
 
     /**
      * Assign default arguments for closure
+     *
+     * @param mixed $argument First argument
      * 
      * @return \PHPF\Closure
      * @since  1.0.0
      */
-    public function assignDefaultArgs()
+    public function assignDefaultArgs($argument)
     {
         $args = func_get_args();
         $callback = $this->callback;
         $this->callback = function () use ($callback, $args) {
-            return call_user_func_array($callback, array_merge($args, func_get_args()));
+            return call_user_func_array($callback, func_get_args() + $args);
         };
 
         return $this;
@@ -209,67 +210,17 @@ class Closure
     /**
      * Assign arguments for closure
      *
+     * @param mixed $argument First argument
+     *
      * @return \PHPF\Closure
      * @since  1.0.0
      */
-    public function assignArgs()
+    public function assignArgs($argument)
     {
         $args = func_get_args();
         $callback = $this->callback;
         $this->callback = function () use ($callback, $args) {
             return call_user_func_array($callback, $args + func_get_args());
-        };
-
-        return $this;
-    }
-
-    /**
-     * Compose - current closure is wrapped specidied wrapper-closure
-     * 
-     * @param callable|\PHPF\Closure $wrapper Wrapper
-     *  
-     * @return \PHPF\Closure
-     * @since  1.0.0
-     * @throws \InvalidArgumentException
-     */
-    public function compose($wrapper)
-    {
-        if ($wrapper instanceof static) {
-            $wrapper = $wrapper->getClosure();
-
-        } elseif (!is_callable($wrapper)) {
-            throw new \InvalidArgumentException('$wrapper is not callback type.');
-        }
-
-        $callback = $this->callback;
-        $this->callback = function () use ($callback, $wrapper) {
-            return call_user_func($wrapper, call_user_func_array($callback, func_get_args()));
-        };
-
-        return $this;
-    }
-
-    /**
-     * Wrap current closure around specified wrapper
-     * 
-     * @param callable|\PHPF\Closure $wrapAround Wrapper
-     *  
-     * @return \PHPF\Closure
-     * @since  1.0.0
-     * @throws \InvalidArgumentException
-     */
-    public function wrap($wrapAround)
-    {
-        if ($wrapAround instanceof static) {
-            $wrapAround = $wrapAround->getClosure();
-
-        } elseif (!is_callable($wrapAround)) {
-            throw new \InvalidArgumentException('$wrapAround is not callback type.');
-        }
-
-        $callback = $this->callback;
-        $this->callback = function () use ($callback, $wrapAround) {
-            return call_user_func($callback, call_user_func_array($wrapAround, func_get_args()));
         };
 
         return $this;
@@ -286,13 +237,13 @@ class Closure
      */
     public function concat($closure)
     {
-        $closures = static::func_get_args(func_get_args());
+        $closures = static::prepareClosuresList(func_get_args());
 
         if (1 > count($closures)) {
             throw new \InvalidArgumentException('Closures list must be length 1 or bigger');
         }
 
-        $closures = array_shift($closures, $this->callback);
+        array_unshift($closures, $this->callback);
 
         $this->callback = function() use ($closures) {
             $args = func_get_args();
@@ -308,21 +259,6 @@ class Closure
 
     // }}}
 
-    // {{{ Information and properties
-
-    /**
-     * Count arguments
-     * 
-     * @return integer
-     * @since  1.0.0
-     */
-    public function countArgs()
-    {
-        return $this->getReflection()->getNumberOfParameters();
-    }
-
-    // }}}
-
     // {{{ Call
 
     /**
@@ -333,9 +269,22 @@ class Closure
      */
     public function call()
     {
-        return call_user_func_array($this->getClosure(), func_get_args());
+        return call_user_func_array($this->callback, func_get_args());
     }
-    
+
+    /**
+     * Call closure with arguments list
+     * 
+     * @param array $arguments Arguments list
+     *  
+     * @return mixed
+     * @since  1.0.0
+     */
+    public function callArray(array $arguments = array())
+    {
+        return call_user_func_array($this->callback, $arguments);
+    }
+ 
     // }}}
 
     // {{{ Service static methods
