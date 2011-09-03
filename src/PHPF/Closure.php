@@ -80,6 +80,19 @@ class Closure
     // {{{ Factories
 
     /**
+     * Build instance
+     * 
+     * @param callable $closure Closure
+     *  
+     * @return \PHPF\Closure
+     * @since  1.0.0
+     */
+    public static function build($closure)
+    {
+        return new static($closure);
+    }
+
+    /**
      * Build as closures concatinations 
      * 
      * @param callable|\PHPF\Closure $closure1 Closure 1
@@ -253,6 +266,36 @@ class Closure
 
             return $args;
         };
+
+        return $this;
+    }
+
+    // }}}
+
+    // {{{ Operations
+
+    /**
+     * Fork (clone) current object
+     * 
+     * @return \PHPF\CLosure
+     * @since  1.0.0
+     */
+    public function fork()
+    {
+        return clone $this;
+    }
+
+    /**
+     * Clone current object into reference argument
+     * 
+     * @param mixed &$clone Clone reference
+     *  
+     * @return \PHPF\Closure
+     * @since  1.0.0
+     */
+    public function cloneOuter(&$clone)
+    {
+        $clone = clone $this;
 
         return $this;
     }

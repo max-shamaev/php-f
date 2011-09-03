@@ -91,6 +91,13 @@ class ClosureTest extends PHPUnit_Framework_TestCase
         }
     }
 
+    public function testBuild()
+    {
+        // Object's method
+        $t = new ClosureTestObject;
+        $this->assertEquals(3, \PHPF\Closure::build(array($t, 'm'))->call(1, 1, 1), 'check call');
+    }
+
     public function testGetAsCallable()
     {
         // Object's method
@@ -262,6 +269,27 @@ class ClosureTest extends PHPUnit_Framework_TestCase
         $this->assertEquals(array(2, 3, 4), $obj->call(1, 1, 1), 'check result');
         $this->assertEquals(array(2, 3, 4), $obj->callArray(array(1, 1, 1)), 'check result with array');
     }
+
+    public function testFork()
+    {
+        $obj = new \PHPF\Closure('ClosureTestFunction2');
+
+        $this->assertEquals(array(3, 5, 7), $obj->fork()->concat('ClosureTestFunction2')->call(1, 1, 1), 'check result (forked)');
+        $this->assertEquals(array(2, 3, 4), $obj->call(1, 1, 1), 'check result');
+    }
+
+    public function testCloneOuter()
+    {
+        $obj = new \PHPF\Closure('ClosureTestFunction2');
+
+        $clone = null;
+        $this->assertEquals(array(3, 5, 7), $obj->cloneOuter($clone)->concat('ClosureTestFunction2')->call(1, 1, 1), 'check result');
+        $this->assertEquals(array(2, 3, 4), $clone->call(1, 1, 1), 'check result (cloned)');
+
+        $obj->cloneOuter($clone);
+        $this->assertEquals(array(3, 5, 7), $clone->call(1, 1, 1), 'check result (new cloned)');
+    }
+
 }
 
 class ClosureTestObject
