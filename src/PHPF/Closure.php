@@ -38,6 +38,7 @@ class Closure
      *  
      * @return callable
      * @since  1.0.0
+     * @throws \InvalidArgumentException
      */
     public static function getAsCallable($callable)
     {
@@ -46,7 +47,7 @@ class Closure
                 $callable = $callable->getClosure();
 
             } else {
-                throw \InvalidArgumentException('$callable arguments is not callable');
+                throw new \InvalidArgumentException('$callable arguments is not callable');
             }
         }
 
@@ -56,15 +57,20 @@ class Closure
     /**
      * Constructor
      * 
-     * @param callable $callback Callback
+     * @param callable|\PHPF\Closure $callback Callback
      *  
      * @return void
      * @since  1.0.0
+     * @throws \InvalidArgumentException
      */
     public function __construct($callback)
     {
+        if (is_object($callback) && $callback instanceOf static) {
+            $callback = $callback->getClosure();
+        }
+
         if (!is_callable($callback)) {
-            throw \InvalidArgumentException('$callback is not callback type.');
+            throw new \InvalidArgumentException('$callback is not callback type.');
         }
 
         $this->callback = $callback;
@@ -116,7 +122,7 @@ class Closure
         $closures = static::prepareClosuresList(func_get_args());
 
         if (2 > count($closures)) {
-            throw \InvalidArgumentException('Closures list must be length 2 or bigger');
+            throw new \InvalidArgumentException('Closures list must be length 2 or bigger');
         }
 
         $func = function() use ($closures) {
@@ -224,6 +230,7 @@ class Closure
      *  
      * @return \PHPF\Closure
      * @since  1.0.0
+     * @throws \InvalidArgumentException
      */
     public function compose($wrapper)
     {
@@ -231,7 +238,7 @@ class Closure
             $wrapper = $wrapper->getClosure();
 
         } elseif (!is_callable($wrapper)) {
-            throw \InvalidArgumentException('$wrapper is not callback type.');
+            throw new \InvalidArgumentException('$wrapper is not callback type.');
         }
 
         $callback = $this->callback;
@@ -249,6 +256,7 @@ class Closure
      *  
      * @return \PHPF\Closure
      * @since  1.0.0
+     * @throws \InvalidArgumentException
      */
     public function wrap($wrapAround)
     {
@@ -256,7 +264,7 @@ class Closure
             $wrapAround = $wrapAround->getClosure();
 
         } elseif (!is_callable($wrapAround)) {
-            throw \InvalidArgumentException('$wrapAround is not callback type.');
+            throw new \InvalidArgumentException('$wrapAround is not callback type.');
         }
 
         $callback = $this->callback;
@@ -274,13 +282,14 @@ class Closure
      *  
      * @return \PHPF\Closure
      * @since  1.0.0
+     * @throws \InvalidArgumentException
      */
     public function concat($closure)
     {
         $closures = static::func_get_args(func_get_args());
 
         if (1 > count($closures)) {
-            throw \InvalidArgumentException('Closures list must be length 1 or bigger');
+            throw new \InvalidArgumentException('Closures list must be length 1 or bigger');
         }
 
         $closures = array_shift($closures, $this->callback);
