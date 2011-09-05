@@ -14,11 +14,11 @@
 namespace PHPF;
 
 /**
- * Array object 
+ * Collection
  * 
  * @since 1.0.0
  */
-class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorAggregate
+class Collection extends APHPF implements \ArrayAccess, \Serializable, \Countable, \IteratorAggregate
 {
     /**
      * Data 
@@ -31,19 +31,19 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
     /**
      * Constructor
      * 
-     * @param array|\PHPF\ArrayObject|\ArrayObject $data $data
+     * @param array|\PHPF\Collection|\Collection $data Data OPTIONAL
      *  
      * @return void
      * @since  1.0.0
      */
-    public function __construct($data)
+    public function __construct($data = array())
     {
         if (is_object($data)) {
 
             if ($data instanceof static || method_exists($data, 'toArray')) {
                 $data = $data->toArray();
 
-            } elseif ($data instanceof \ArrayObject) {
+            } elseif ($data instanceof \Collection) {
                 $data = $data->getArrayCopy();
 
             } else {
@@ -57,7 +57,39 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
         $this->data = $data;
     }
 
-    // {{{ Fabrics
+    // {{{ Factories
+
+    /**
+     * Build instance
+     *
+     * @param array|\PHPF\Collection|\Collection $data Data OPTIONAL
+     *
+     * @return \PHPF\Collection
+     * @since  1.0.0
+     */
+    public static function build($data = array())
+    {
+        return new static($data);
+    }
+
+    /**
+     * Build as tree 
+     * 
+     * @param array $data Data
+     *
+     * @return \PHPF\Collection
+     * @since  1.0.0
+     */
+    public static function buildTree(array $data = array())
+    {
+        foreach ($data as $k => $v) {
+            if (is_array($v)) {
+                $data[$k] = static::buildTree($v);
+            }
+        }
+
+        return new static($data);
+    }
 
     /**
      * Combine array from keys list and values list
@@ -65,7 +97,7 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      * @param mixed $keys   Keys
      * @param mixed $values Values
      *  
-     * @return \PHPF\ArrayObject
+     * @return \PHPF\Collection
      * @since  1.0.0
      */
     public static function combine($keys, $values)
@@ -79,13 +111,17 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      * @param array $array1 First array
      * @param array $array2 Second array
      *  
-     * @return \PHPF\ArrayObject
+     * @return \PHPF\Collection
      * @since  1.0.0
      */
     public static function buildByDiffAssoc(array $array1, array $array2)
     {
         return new static(call_user_func_array('array_diff_assoc', static::getAsArrays(func_get_args())));
     }
+
+    // }}}
+
+    // {{{ Helpers
 
     /**
      * Get data as array 
@@ -102,7 +138,7 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
             if ($data instanceof static || method_exists($data, 'toArray')) {
                 $data = $data->toArray();
 
-            } elseif ($data instanceof \ArrayObject) {
+            } elseif ($data instanceof \Collection) {
                 $data = $data->getArrayCopy();
 
             } else {
@@ -313,11 +349,27 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
     // {{{ Structure changes
 
     /**
+     * Set cell
+     * 
+     * @param mixed $key   Key
+     * @param mixed $value Value
+     *  
+     * @return \PHPF\Collection
+     * @since  1.0.0
+     */
+    public function set($key, $value)
+    {
+        $this->data[$key] = $value;
+
+        return $this;
+    }
+
+    /**
      * Append value
      * 
      * @param mixed $value New value
      *  
-     * @return \PHPF\ArrayObject
+     * @return \PHPF\Collection
      * @since  1.0.0
      */
     public function push($value)
@@ -332,7 +384,7 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      * 
      * @param mixed $value Value
      *  
-     * @return \PHPF\ArrayObject
+     * @return \PHPF\Collection
      * @since  1.0.0
      */
     public function unshift($value)
@@ -373,29 +425,64 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
     }
 
     /**
+     * Clear data
+     * 
+     * @return \PHPF\Collection
+     * @since  1.0.0
+     */
+    public function clear()
+    {
+        $this->data;
+
+        return $this;
+    }
+
+    /**
      * Remove a portion of the array and replace it with something else
      * 
      * @param integer $offset      Offset
      * @param integer $length      Splice length OPTIONAL
      * @param mixed   $replacement Replacement part OPTIONAL
-     * @param boolean $returnValue Return value or not OPTIONAL
      *  
-     * @return array|\PHPF\ArrayObject
+     * @return array|\PHPF\Collection
      * @since  1.0.0
      */
-    public function splice($offset, $length = 0, $replacement = null, $returnValue = false)
+    public function splice($offset, $length = 0, $replacement = null)
     {
-        $spliced = 2 > func_num_args()
-            ? array_splice($this->data, $offset, $length, $replacement)
-            : array_splice($this->data, $offset, $length);
+        if (2 > func_num_args()) {
+            array_splice($this->data, $offset, $length, $replacement);
 
-        return $returnValue ? $spliced : $this;
+        } else {
+            array_splice($this->data, $offset, $length);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Extract a slice of $length elements starting at position $offset from the Collection.
+     *
+     * If $length is null it returns all elements from $offset to the end of the Collection.
+     * Keys have to be preserved by this method. Calling this method will only return the
+     * selected slice and NOT change the elements contained in the collection slice is called on.
+     * 
+     * @param integer $offset Offset
+     * @param integer $length Range length OPTIONAL
+     *  
+     * @return \PHPF\Collection
+     * @since  1.0.0
+     */
+    public function slice($offset, $length = null)
+    {
+        $this->data = array_slice($this->data, $offset, $length, true);
+
+        return $this;
     }
 
     /**
      * Merge current array ant some arrays from arguments
      * 
-     * @return \PHPF\ArrayObject
+     * @return \PHPF\Collection
      * @since  1.0.0
      */
     public function merge()
@@ -408,11 +495,46 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
     }
 
     /**
+     * Remove cell by key 
+     * 
+     * @param mixed $key Key
+     *  
+     * @return \PHPF\Collection
+     * @since  1.0.0
+     */
+    public function removeKey($key)
+    {
+        if (array_key_exists($key, $this->data)) {
+            unset($this->data[$key]);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Remove cell by value
+     * 
+     * @param mixed $value Value
+     *  
+     * @return \PHPF\Collection
+     * @since  1.0.0
+     */
+    public function removeElement($value)
+    {
+        $key = array_search($element, $this->data, true);
+        if (false !== $key) {
+            unset($this->data[$key]);
+        }
+
+        return $this;
+    }
+
+    /**
      * Computes the difference of arrays with additional index check
      * 
      * @param mixed $array1 Another array
      *  
-     * @return \PHPF\ArrayObject
+     * @return \PHPF\Collection
      * @since  1.0.0
      */
     public function diffAssoc($array1)
@@ -425,7 +547,7 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      *
      * @param mixed $array1 Another array
      *
-     * @return \PHPF\ArrayObject
+     * @return \PHPF\Collection
      * @since  1.0.0
      */
     public function diffKey($array1)
@@ -438,7 +560,7 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      * 
      * @param mixed $array1 First array
      *  
-     * @return \PHPF\ArrayObject
+     * @return \PHPF\Collection
      * @since  1.0.0
      */
     public function diffUassoc($array1)
@@ -455,7 +577,7 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      * @param string $callback Function name
      * @param array  $args     Arguments
      *  
-     * @return \PHPF\ArrayObject
+     * @return \PHPF\Collection
      * @since  1.0.0
      */
     protected function combineCallback($callback, array $args)
@@ -530,6 +652,194 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
         return array_count_values($this->data);
     }
 
+    /**
+     * Check contains value
+     * 
+     * @param mixed $value Value
+     *  
+     * @return boolean
+     * @since  1.0.0
+     */
+    public function contains($value)
+    {
+        return in_array($value, $this->_elements, true);
+    }
+
+    /**
+     * Tests for the existance of an element that satisfies the given predicate
+     * 
+     * @param callable|\PHPF\Closure $callback Callback
+     *  
+     * @return boolean
+     * @since  1.0.0
+     */
+    public function exists($callback)
+    {
+        $callback = \PHPF\Closure::getAsCallable($callback);
+
+        $result = false;
+
+        foreach ($this->data as $key => $element) {
+            if ($callback($key, $element)) {
+                $result = true;
+                break;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Applies the given predicate p to all elements of this collection,
+     * returning true, if the predicate yields true for all elements.
+     * 
+     * @param callable $callback Callback
+     *  
+     * @return boolean
+     * @since  1.0.0
+     */
+    public function forAll($callback)
+    {
+        $callback = \PHPF\Closure::getAsCallable($callback);
+
+        $result = true;
+        foreach ($this->data as $key => $value) {
+            if (!$callback($value, $key, $this)) {
+                $result = false;
+                break;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Get index of value
+     * 
+     * @param mixed $value Value
+     *  
+     * @return mixed
+     * @since  1.0.0
+     */
+    public function indexOf($value)
+    {
+        return array_search($value, $this->data, true);
+    }
+
+    /**
+     * Get keys 
+     * 
+     * @return array
+     * @since  1.0.0
+     */
+    public function getKeys()
+    {
+        return array_keys($this->data);
+    }
+
+    /**
+     * Get values as plain array
+     * 
+     * @return array
+     * @since  1.0.0
+     */
+    public function getValues()
+    {
+        return array_values($this->data);
+    }
+
+    // }}}
+
+    // {{{ Getters
+
+    /**
+     * Get value
+     * 
+     * @param mixed $key Key
+     *  
+     * @return mixed
+     * @since  1.0.0
+     */
+    public function get($key)
+    {
+        return $this->__get($key);
+    }
+
+    /**
+     * Get first cell
+     * 
+     * @return mixed
+     * @since  1.0.0
+     */
+    public function first()
+    {
+        return reset($this->data);
+    }
+
+    /**
+     * Get last cell
+     * 
+     * @return mixed
+     * @since  1.0.0
+     */
+    public function last()
+    {
+        return end($this->data);
+    }
+
+    /**
+     * Get current cell key 
+     * 
+     * @return void
+     * @since  1.0.0
+     */
+    public function key()
+    {
+        return key($this->data);
+    }
+
+    /**
+     * Move the internal cursor to the next element
+     * 
+     * @return mixed
+     * @since  1.0.0
+     */
+    public function next()
+    {
+        return next($this->data);
+    }
+
+    /**
+     * Get current cell
+     * 
+     * @return void
+     * @since  1.0.0
+     */
+    public function current()
+    {
+        return current($this->data);
+    }
+
+    /**
+     * Remove cell by key and return removed value
+     * 
+     * @param mixed $key Cell key
+     *  
+     * @return mixed
+     * @since  1.0.0
+     */
+    public function removeAndReturn($key)
+    {
+        $removed = null;
+
+        if (array_key_exists($key, $this->data)) {
+            $removed = $this->data[$key];
+            unset($this->data[$key]);
+        }
+
+        return $removed;
+    }
+
     // }}}
 
     // {{{ Operations
@@ -539,12 +849,12 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      *
      * @param callable $callback Callback
      *
-     * @return \PHPF\ArrayObject
+     * @return \PHPF\Collection
      * @since  1.0.0
      */
     public function each($callback)
     {
-        foreach ($this as $key => $value) {
+        foreach ($this->data as $key => $value) {
             $callback($value, $key, $this);
         }
 
@@ -556,13 +866,15 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      * 
      * @param callable $callback Callback
      *  
-     * @return \PHPF\ArrayObject
+     * @return \PHPF\Collection
      * @since  1.0.0
      */
     public function map($callback)
     {
-        foreach ($this as $key => $value) {
-            $this->offsetSet($key, $callback($value, $key, $this));
+        $callback = \PHPF\Closure::getAsCallable($callback);
+
+        foreach ($this->data as $key => $value) {
+            $this->data[$key] = $callback($value, $key, $this);
         }
 
         return $this;
@@ -578,8 +890,10 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      */
     public function every($callback)
     {
+        $callback = \PHPF\Closure::getAsCallable($callback);
+
         $result = false;
-        foreach ($this as $key => $value) {
+        foreach ($this->data as $key => $value) {
             if (!$callback($value, $key, $this)) {
                 $result = false;
                 break;
@@ -602,8 +916,10 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      */
     public function some($callback)
     {
+        $callback = \PHPF\Closure::getAsCallable($callback);
+
         $result = false;
-        foreach ($this as $key => $value) {
+        foreach ($this->data as $key => $value) {
             if ($callback($value, $key, $this)) {
                 $result = true;
                 break;
@@ -623,8 +939,10 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      */
     public function none($callback)
     {
+        $callback = \PHPF\Closure::getAsCallable($callback);
+
         $result = false;
-        foreach ($this as $key => $value) {
+        foreach ($this->data as $key => $value) {
             if ($callback($value, $key, $this)) {
                 $result = false;
                 break;
@@ -643,12 +961,12 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      * @param string $methodName Method name
      * @param array  $arguments  Method arguments OPTIONAL
      *  
-     * @return \PHPF\ArrayObject
+     * @return \PHPF\Collection
      * @since  1.0.0
      */
     public function invoke($methodName, array $arguments = array())
     {
-        foreach ($this as $value) {
+        foreach ($this->data as $value) {
             call_user_func_array(array($value, $methodName), $arguments);
         }
 
@@ -660,42 +978,48 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      * 
      * @param string $propertyName Property name
      *  
-     * @return array
+     * @return \PHPF\Collection
      * @since  1.0.0
      */
     public function pluck($propertyName)
     {
         $list = array();
 
-        foreach ($this as $key => $value) {
+        foreach ($this->data as $key => $value) {
             $list[$key] = $value->$propertyName;
         }
 
-        return $list;
+        $this->data = $list;
+
+        return $this;
     }
 
     /**
      * Splits a collection into parts by callback
      *
      * @param callable $callback Callback
-     * @param integer  $limit    Parts limi OPTIONAL
+     * @param integer  $limit    Parts limit OPTIONAL
      *
-     * @return array
+     * @return \PHPF\Collection
      * @since  1.0.0
      */
     public function explode($callback, $limit = null)
     {
+        $callback = \PHPF\Closure::getAsCallable($callback);
+
         $parts = array();
         $index = 0;
 
-        foreach ($this as $key => $value) {
+        foreach ($this->data as $key => $value) {
             if ($callback($value, $key, $this) && isset($limit) && $index < $limit) {
                 $index++;
             }
             $list[$index] = $value;
         }
 
-        return $list;
+        $this->data = $list;
+
+        return $this;
     }
 
    /**
@@ -703,14 +1027,16 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      *
      * @param callable $callback Callback
      *
-     * @return array
+     * @return \PHPF\Collection
      * @since  1.0.0
      */
     public function group($callback)
     {
+        $callback = \PHPF\Closure::getAsCallable($callback);
+
         $groups = array();
 
-        foreach ($this as $key => $value) {
+        foreach ($this->data as $key => $value) {
             $index = $callback($value, $key, $this);
 
             if (!isset($groups[$index])) {
@@ -720,7 +1046,9 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
             $groups[$index][$key] = $value;
         }
 
-        return $groups;
+        $this->data = $groups;
+
+        return $this;
     }
 
     /**
@@ -733,10 +1061,12 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      */
     public function partition($callback)
     {
+        $callback = \PHPF\Closure::getAsCallable($callback);
+
         $valid = array();
         $invalid = array();
 
-        foreach ($this as $key => $value) {
+        foreach ($this->data as $key => $value) {
             if ($callback($value, $key, $this)) {
                 $valid[$key] = $value;
 
@@ -745,7 +1075,7 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
             }
         }
 
-        return array($valid, $invalid);
+        return array(new static($valid), new static($invalid));
     }
 
     /**
@@ -760,8 +1090,10 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      */
     public function reduceLeft($callback, $initial = null)
     {
+        $callback = \PHPF\Closure::getAsCallable($callback);
+
         $reduction = $initial;
-        foreach ($this as $value) {
+        foreach ($this->data as $value) {
             $reduction = $callback($value, $key, $this, $reduction);
         }
 
@@ -780,61 +1112,16 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      */
     public function reduceRight($callback, $initial = null)
     {
+        $callback = \PHPF\Closure::getAsCallable($callback);
+
         $reduction = $initial;
 
-        do {
-
-            $value = $this->pop();
-            if (isset($value)) {
-                $reduction = $callback($value, $key, $this, $reduction);
-            }
-
-        } while(isset($value));
+        $reduction = $initial;
+        foreach (array_reverse($this->data, true) as $value) {
+            $reduction = $callback($value, $key, $this, $reduction);
+        }
 
         return $reduction;
-    }
-
-    /**
-     * Returns the first element of the collection where the callback returned true
-     *
-     * @param callable $callback Callback
-     *
-     * @return mixed
-     * @since  1.0.0
-     */
-    public function first($callback = null)
-    {
-        $result = null;
-
-        foreach ($this as $value) {
-            if (!$callback || $callback($value, $key, $this)) {
-                $result = $value;
-                break;
-            }
-        }
-
-        return $value;
-    }
-
-    /**
-     * Returns the last element of the collection where the callback returned true
-     *
-     * @param callable $callback Callback
-     *
-     * @return mixed
-     * @since  1.0.0
-     */
-    public function last($callback = null)
-    {
-        $result = null;
-
-        foreach ($this as $value) {
-            if (!$callback || $callback($value, $key, $this)) {
-                $result = $value;
-            }
-        }
-
-        return $result;
     }
 
     /**
@@ -845,7 +1132,7 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      */
     public function product()
     {
-        return array_product($this->getArrayCopy());
+        return array_product($this->data());
     }
 
     /**
@@ -857,7 +1144,7 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
     public function ratio()
     {
         $result = null;
-        foreach ($this as $value) {
+        foreach ($this->data as $value) {
             if (isset($result)) {
                 $result = $result / $value;
 
@@ -877,7 +1164,7 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      */
     public function sum()
     {
-        return array_sum($this->getArrayCopy());
+        return array_sum($this->data);
     }
 
     /**
@@ -889,7 +1176,7 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
     public function difference()
     {
         $result = null;
-        foreach ($this as $value) {
+        foreach ($this->data as $value) {
             if (isset($result)) {
                 $result = $result - $value;
 
@@ -910,16 +1197,14 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      *
      * @param callable $callback Callback
      *
-     * @return \PHPF\ArrayObject
+     * @return \PHPF\Collection
      * @since  1.0.0
      */
     public function select($callback)
     {
-        foreach ($this as $key => $value) {
-            if (!$callback($value, $key, $this)) {
-                $this->offsetUnset($key);
-            }
-        }
+        $callback = \PHPF\Closure::getAsCallable($callback);
+
+        $this->data = array_filter($this->data, $callback);
 
         return $this;
     }
@@ -929,14 +1214,16 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      *
      * @param callable $callback Callback
      *
-     * @return \PHPF\ArrayObject
+     * @return \PHPF\Collection
      * @since  1.0.0
      */
     public function reject($callback)
     {
-        foreach ($this as $key => $value) {
+        $callback = \PHPF\Closure::getAsCallable($callback);
+
+        foreach ($this->data as $key => $value) {
             if ($callback($value, $key, $this)) {
-                $this->offsetUnset($key);
+                unset($this->data[$key]);
             }
         }
 
@@ -948,19 +1235,21 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      *
      * @param callable $callback Callback
      *
-     * @return \PHPF\ArrayObject
+     * @return \PHPF\Collection
      * @since  1.0.0
      */
     public function dropFirst($callback)
     {
+        $callback = \PHPF\Closure::getAsCallable($callback);
+
         $found = false;
-        foreach ($this as $key => $value) {
+        foreach ($this->data as $key => $value) {
             if ($callback($value, $key, $this)) {
                 $found = true;
             }
 
             if (!$found) {
-                $this->offsetUnset($key);
+                unset($this->data[$key]);
             }
         }
 
@@ -972,19 +1261,21 @@ class ArrayObject implements \ArrayAccess, \Serializable, \Countable, \IteratorA
      *
      * @param callable $callback Callback
      *
-     * @return \PHPF\ArrayObject
+     * @return \PHPF\Collection
      * @since  1.0.0
      */
     public function dropLast($callback)
     {
+        $callback = \PHPF\Closure::getAsCallable($callback);
+
         $found = false;
-        foreach ($this as $key => $value) {
+        foreach ($this->data as $key => $value) {
             if ($callback($value, $key, $this)) {
                 $found = true;
             }
 
             if ($found) {
-                $this->offsetUnset($key);
+                unset($this->data[$key]);
             }
         }
 

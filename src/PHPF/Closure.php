@@ -13,7 +13,12 @@
 
 namespace PHPF;
 
-class Closure
+/**
+ * Closure 
+ * 
+ * @since 1.0.0
+ */
+class Closure extends APHPF
 {
     /**
      * Callback 
@@ -266,36 +271,6 @@ class Closure
 
             return $args;
         };
-
-        return $this;
-    }
-
-    // }}}
-
-    // {{{ Operations
-
-    /**
-     * Fork (clone) current object
-     * 
-     * @return \PHPF\CLosure
-     * @since  1.0.0
-     */
-    public function fork()
-    {
-        return clone $this;
-    }
-
-    /**
-     * Clone current object into reference argument
-     * 
-     * @param mixed &$clone Clone reference
-     *  
-     * @return \PHPF\Closure
-     * @since  1.0.0
-     */
-    public function cloneOuter(&$clone)
-    {
-        $clone = clone $this;
 
         return $this;
     }
